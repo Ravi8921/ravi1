@@ -29,7 +29,6 @@ const getbooks =async function(req,res){
    let booklist = await mybookModel.find().populate({path:"author",select:{"author_name":1,"age":1}}).populate('publisher')
 res.send({data:booklist})
 }
-
  
 
 
