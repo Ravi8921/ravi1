@@ -84,8 +84,8 @@ const getAnswer =  async function (req, res) {
 }}
 
 
+const updateAnswer = async function (req, res) {
 
-const updateAnswer = async (req, res) => {
     try {
         const answerId = req.params.answerId
         requestbody = req.body;
@@ -122,8 +122,8 @@ const updateAnswer = async (req, res) => {
         return res.status(500).send({ status: false, message: err.message })
     }
 }
+const deleteAnswer = async function (req, res) {
 
-const deleteAnswer = async (req, res) => {
     try {
         let requestbody = req.body;
         let TokenDetail = req.user;
