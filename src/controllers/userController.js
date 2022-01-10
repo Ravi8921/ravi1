@@ -2,31 +2,59 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const saltRounds = 10
 const userModel = require("../models/userModel");
+const aws = require('aws-sdk')
 const mongoose = require('mongoose')
- const ObjectId = mongoose.Types.ObjectId
+const ObjectId = mongoose.Types.ObjectId
 const validator = require("../validation/validator");
 
 
+aws.config.update({
+  accessKeyId: "AKIAY3L35MCRRMC6253G",
+  secretAccessKey: "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",
+  region: "ap-south-1",
+})
 
-const RegisterUser = async (req, res) => {
+let uploadFile = async (file, group) => {
+  return new Promise(function (resolve, reject) {
+
+    let s3 = new aws.S3({ apiVersion: "2006-03-01" });
+
+    let uploadParams = {
+      ACL: "public-read",
+      Bucket: "classroom-training-bucket",
+      Key: group + "/16" + Date.now() + file.originalname,
+      Body: file.buffer
+    }
+
+    s3.upload(uploadParams, function (err, data) {
+      if (err) return reject({ "error": err })
+
+      return resolve(data.Location);
+    });
+
+  });
+
+}
+
+const registerUser = async (req, res) => {
   try {
     let data = req.body;
-    
-    const { fname, lname, email, phone, password} = data;
+    let files = req.files;
+    const { fname, lname, email, phone, password, address } = data;
 
     if (!validator.isValidRequestBody(data)) {
       return res
         .status(400)
         .send({
           status: false,
-          message: "Invalid request  Please Provide User Details",
+          message: "Invalid request parameters.. Please Provide User Details",
         });
     }
 
     if (!validator.isValid(fname)) {
       return res
         .status(400)
-        .send({ status: false, message: "Please Provide first Name" });
+        .send({ status: false, message: "Please Provide First Name" });
     }
 
     if (!validator.isValid(lname)) {
@@ -38,7 +66,7 @@ const RegisterUser = async (req, res) => {
     if (!validator.isValid(email)) {
       return res
         .status(400)
-        .send({ status: false, message: "Please Provide email" });
+        .send({ status: false, message: "Please Provide Email" });
     }
     const isEmailAlreadyUsed = await userModel.findOne({ email }); // {email: email} object shorthand property 
     if (isEmailAlreadyUsed) {
@@ -71,7 +99,20 @@ const RegisterUser = async (req, res) => {
       return
     }
 
-    
+    if (!validator.isValid(address)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "Please Provide Address" });
+    }
+
+
+    if (!address.shipping || (address.shipping && (!address.shipping.street || !address.shipping.city || !address.shipping.pincode))) {
+      return res.status(400).send({ status: false, message: 'Shipping address is required' })
+    }
+
+    if (!address.billing || (address.billing && (!address.billing.street || !address.billing.city || !address.billing.pincode))) {
+      return res.status(400).send({ status: false, message: 'Billing address is required' })
+    }
 
     if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email.trim())) {
       return res
@@ -86,7 +127,12 @@ const RegisterUser = async (req, res) => {
       });
     }
 
-     
+
+
+    if (files && files.length > 0) {
+
+      const uploadedFileURL = await uploadFile(files[0], 'user')
+      data.profileImage = uploadedFileURL;
       // generate salt to hash password
 
       const encryptedPassword = await bcrypt.hash(password, saltRounds);
@@ -97,8 +143,11 @@ const RegisterUser = async (req, res) => {
       return res
         .status(201)
         .send({ status: true, message: "Successfully Created", data: savedData });
-    
-       
+    } else {
+      return res
+        .status(404)
+        .send({ status: false, message: "Select an Image File" });
+    }
   }
 
   catch (err) {
@@ -131,7 +180,7 @@ const Login = async (req, res) => {
 
       if (!validPassword) { return res.status(400).send({ status: false, message: " Invalid password" }); }
       let payload = { userId: _id };
-      const generatedToken = jwt.sign(payload, "Exodus", { expiresIn: "60m" });
+      const generatedToken = jwt.sign(payload, "Exodus", { expiresIn: "30m" });
 
       res.header("user-login", generatedToken);
 
@@ -174,7 +223,7 @@ const updateUser = async function (req, res) {
     const requestBody = req.body
 
     if (!Object.keys(requestBody).length > 0) {
-      return res.status(200).send({ status: true, message: 'No param received user details unmodified' })
+      return res.status(200).send({ status: true, message: 'No param received, user details unmodified' })
     }
 
     if (!ObjectId.isValid(userId)) {
@@ -187,7 +236,7 @@ const updateUser = async function (req, res) {
       return res.status(404).send({ status: false, message: "User not found" })
     }
     // Extract parameters
-    let { fname, lname, email, phone, password } = req.body
+    let { fname, lname, email, phone, password, address, files } = req.body
     // Prepare update fields
     if (fname) {
       user['fname'] = fname
@@ -220,7 +269,27 @@ const updateUser = async function (req, res) {
 
       user['password'] = encryptedPassword
     }
-   
+    if (address) {
+      {
+        if (address.shipping) {
+          if (address.shipping.street) user.address.shipping['street'] = address.shipping.street
+          if (address.shipping.city) user.address.shipping['city'] = address.shipping.city
+          if (address.shipping.pincode) user.address.shipping['pincode'] = address.shipping.pincode
+        }
+
+        if (address.billing) {
+          if (address.billing.street) user.address.billing['street'] = address.billing.street
+          if (address.billing.city) user.address.billing['city'] = address.billing.city
+          if (address.billing.pincode) user.address.billing['pincode'] = address.billing.pincode
+        }
+      }
+    }
+
+    if (files && files.length > 0) {
+      const profileImage = await uploadFile(files[0], 'user')
+      user['profileImage'] = profileImage
+    }
+
     const updatedUser = await user.save()
 
     const strUserUpdate = JSON.stringify(updatedUser);
@@ -235,4 +304,4 @@ const updateUser = async function (req, res) {
 }
 
 
-module.exports = { RegisterUser, Login, getUserData, updateUser }
+module.exports = { registerUser, Login, getUserData, updateUser }

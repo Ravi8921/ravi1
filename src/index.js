@@ -12,7 +12,7 @@ const multer = require('multer');
 
  app.use('/',route)
 
- mongoose.connect("mongodb+srv://monty-python:SnYUEY4giV9rekw@functionup-backend-coho.0zpfv.mongodb.net/ravikant_11db?retryWrites=true&w=majority", { useNewUrlParser: true })
+ mongoose.connect("mongodb+srv://monty-python:SnYUEY4giV9rekw@functionup-backend-coho.0zpfv.mongodb.net/group_16db?retryWrites=true&w=majority", { useNewUrlParser: true })
  .then(() => console.log('mongodb running and connected'))
  .catch(err => console.log(err))
 

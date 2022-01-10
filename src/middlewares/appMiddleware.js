@@ -9,7 +9,7 @@ const auth = async function (req, res, next) {
             return
         } 
         
-        const decodedtoken = jwt.verify(token, "ravikant")
+        const decodedtoken = jwt.verify(token, "Exodus")
             
         if (!decodedtoken) {
             res.status(401).send({ status: false, Message: 'Invalid token.' }) 
